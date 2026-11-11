@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS user (
                   CHECK (status IN ('ACTIVE', 'BANNED')),           -- UserStatus 枚举
     fail_count    INTEGER NOT NULL DEFAULT 0,                       -- 连续登录失败次数（NFR-SEC-05）
     lock_until    INTEGER,                                          -- 锁定截止时间（epoch ms）
+    password_changed_at INTEGER,                                    -- 最近改密时刻；token.iat 早于它则失效（FR-AUTH-04，CH-007）
     created_at    INTEGER NOT NULL
 );
 
