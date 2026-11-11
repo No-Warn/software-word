@@ -1,0 +1,19 @@
+[Unit]
+Description=Campus Market (拾光集市) Spring Boot Application
+After=network.target
+
+[Service]
+Type=simple
+User=market
+WorkingDirectory=/opt/market
+# NFR-MAINT-03：敏感配置仅环境变量注入（部署时替换为真实值，勿入代码库）
+Environment=JWT_SECRET=change-me-in-production-32bytes-min
+Environment=ADMIN_PASSWORD=change-me-on-first-boot
+Environment=DATA_DIR=/opt/market/data
+ExecStart=/usr/bin/java -jar /opt/market/market.jar --spring.profiles.active=prod
+SuccessExitStatus=143
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

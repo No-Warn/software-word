@@ -12,7 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Component;
+
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
@@ -26,7 +26,7 @@ import java.util.List;
  * 4) 注入 principal=userId(Long)、authority=ROLE_xxx。
  * 校验失败时静默跳过（无 SecurityContext），由授权规则统一返回 401。
  */
-@Component
+
 @RequiredArgsConstructor
 public class JwtAuthFilter extends OncePerRequestFilter {
 

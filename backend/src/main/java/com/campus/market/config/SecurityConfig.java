@@ -1,6 +1,8 @@
 package com.campus.market.config;
 
+import com.campus.market.mapper.UserMapper;
 import com.campus.market.security.JwtAuthFilter;
+import com.campus.market.security.JwtUtil;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -28,7 +30,14 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtAuthFilter jwtAuthFilter;
+    private final JwtUtil jwtUtil;
+    private final UserMapper userMapper;
+
+    @Bean
+    public JwtAuthFilter jwtAuthFilter() {
+        // T-21：仅注册进 SecurityFilterChain（@Component 会全局注册导致每请求执行两次）
+        return new JwtAuthFilter(jwtUtil, userMapper);
+    }
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -36,7 +45,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception {
         http.csrf(csrf -> csrf.disable())
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
