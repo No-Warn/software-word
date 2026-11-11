@@ -1,17 +1,23 @@
 package com.campus.market.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.market.common.BizException;
 import com.campus.market.common.ErrorCode;
+import com.campus.market.common.PageResult;
 import com.campus.market.config.MarketProperties;
 import com.campus.market.dto.request.OrderCreateRequest;
 import com.campus.market.dto.response.OrderVO;
 import com.campus.market.entity.Goods;
 import com.campus.market.entity.Order;
+import com.campus.market.entity.User;
 import com.campus.market.enums.GoodsStatus;
 import com.campus.market.enums.OrderEvent;
 import com.campus.market.enums.OrderStatus;
+import com.campus.market.enums.TradeRole;
 import com.campus.market.mapper.GoodsMapper;
 import com.campus.market.mapper.OrderMapper;
+import com.campus.market.mapper.UserMapper;
 import com.campus.market.service.OrderService;
 import com.campus.market.statemachine.OrderStateMachine;
 import lombok.RequiredArgsConstructor;
@@ -24,15 +30,20 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 
 /**
- * 订单服务（FR-ORDER-01/02；API-17/18）。
+ * 订单服务（FR-ORDER-01~06；API-17~21）。
  * 下单互斥（BR-06，02§2.6.1）：事务内 tryLockGoods 条件更新（行数=1 才建单）；
  * SQLite 写串行化 + WAL 兜底并发（DataConfig）；INSERT 失败事务整体回滚，商品自动回到 ON_SALE。
  * 价格快照（BR-12）：amount 取下单时商品价，后续改价不影响。
  * 模拟支付（BR-04，02§2.6.2）：幂等（重复支付返回当前态）→ 状态机守卫（B0304）→
  * 超时判定（B0305）→ 商品治理态拒绝 → markPaid 条件更新（竞态后到者按幂等/错误处理）。
+ * 取消/完成（02§2.6.6）：订单变更与商品回滚/售出在**同一事务**，任一失败整体回滚。
  */
 @Slf4j
 @Service
@@ -43,6 +54,7 @@ public class OrderServiceImpl implements OrderService {
 
     private final OrderMapper orderMapper;
     private final GoodsMapper goodsMapper;
+    private final UserMapper userMapper;
     private final OrderStateMachine orderStateMachine;
     private final MarketProperties props;
 
@@ -108,6 +120,89 @@ public class OrderServiceImpl implements OrderService {
         order.setPayTime(now);
         log.info("order paid: orderNo={}, voucher={}", order.getOrderNo(), voucher);
         return OrderVO.from(order, goods.getTitle());
+    }
+
+    @Override
+    @Transactional
+    public OrderVO cancel(Long buyerId, Long orderId) {
+        Order order = requireBuyerOrder(buyerId, orderId);
+        long now = System.currentTimeMillis();
+        // 幂等（02§2.5.1）：已取消直接返回当前态
+        if (order.getStatus() == OrderStatus.CANCELLED) {
+            return OrderVO.from(order, null);
+        }
+        // 仅 PENDING_PAY 可取消（PAID 只能仲裁取消，01§1.5.3）
+        orderStateMachine.check(order.getStatus(), OrderEvent.CANCEL);  // 否则 B0304
+        int rows = orderMapper.markCancelled(orderId, "买家主动取消");
+        if (rows != 1) {
+            throw new BizException(ErrorCode.ORDER_STATUS_INVALID);     // 竞态兜底
+        }
+        // 02§2.6.6：同事务回滚商品在售（BR-02：LOCKED → ON_SALE）
+        int unlocked = orderMapper.unlockGoods(order.getGoodsId(), now);
+        if (unlocked != 1) {
+            throw new BizException(ErrorCode.GOODS_STATUS_INVALID);     // 一致性兜底 → 事务整体回滚
+        }
+        order.setStatus(OrderStatus.CANCELLED);
+        order.setCancelReason("买家主动取消");
+        return OrderVO.from(order, null);
+    }
+
+    @Override
+    @Transactional
+    public OrderVO complete(Long buyerId, Long orderId) {
+        Order order = requireBuyerOrder(buyerId, orderId);
+        long now = System.currentTimeMillis();
+        // 幂等：已完成直接返回当前态
+        if (order.getStatus() == OrderStatus.COMPLETED) {
+            return OrderVO.from(order, null);
+        }
+        orderStateMachine.check(order.getStatus(), OrderEvent.COMPLETE);    // 仅 PAID 可完成
+        int rows = orderMapper.markCompleted(orderId, now);
+        if (rows != 1) {
+            throw new BizException(ErrorCode.ORDER_STATUS_INVALID);
+        }
+        // 02§2.6.6：同事务标记商品 SOLD
+        int sold = orderMapper.markSold(order.getGoodsId(), now);
+        if (sold != 1) {
+            throw new BizException(ErrorCode.GOODS_STATUS_INVALID);     // 一致性兜底 → 事务整体回滚
+        }
+        order.setStatus(OrderStatus.COMPLETED);
+        order.setCompleteTime(now);
+        return OrderVO.from(order, null);
+    }
+
+    @Override
+    public PageResult<OrderVO> listMine(Long userId, TradeRole role, Integer page, Integer size) {
+        int p = (page == null || page < 1) ? 1 : page;
+        int s = (size == null || size < 1) ? 20 : Math.min(size, 100);  // 02§2.5.1
+        LambdaQueryWrapper<Order> qw = new LambdaQueryWrapper<>();
+        boolean asSeller = role == TradeRole.SELLER;
+        if (asSeller) {
+            qw.eq(Order::getSellerId, userId);
+        } else {
+            qw.eq(Order::getBuyerId, userId);
+        }
+        qw.orderByDesc(Order::getCreatedAt);
+        Page<Order> result = orderMapper.selectPage(new Page<>(p, s), qw);
+        List<Order> orders = result.getRecords();
+
+        // 批量关联商品标题与对方昵称（避免 N+1）
+        Set<Long> goodsIds = orders.stream().map(Order::getGoodsId).collect(Collectors.toSet());
+        Set<Long> counterpartIds = orders.stream()
+                .map(o -> asSeller ? o.getBuyerId() : o.getSellerId())
+                .collect(Collectors.toSet());
+        Map<Long, String> titles = goodsIds.isEmpty() ? Map.of()
+                : goodsMapper.selectBatchIds(goodsIds).stream()
+                        .collect(Collectors.toMap(Goods::getId, Goods::getTitle));
+        Map<Long, String> nicknames = counterpartIds.isEmpty() ? Map.of()
+                : userMapper.selectBatchIds(counterpartIds).stream()
+                        .collect(Collectors.toMap(User::getId, User::getNickname));
+
+        List<OrderVO> vos = orders.stream()
+                .map(o -> OrderVO.from(o, titles.get(o.getGoodsId()),
+                        nicknames.get(asSeller ? o.getBuyerId() : o.getSellerId())))
+                .toList();
+        return PageResult.of(vos, result.getTotal(), p, s);
     }
 
     private Order requireBuyerOrder(Long buyerId, Long orderId) {

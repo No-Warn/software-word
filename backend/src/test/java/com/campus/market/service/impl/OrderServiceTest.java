@@ -11,6 +11,7 @@ import com.campus.market.enums.GoodsStatus;
 import com.campus.market.enums.OrderStatus;
 import com.campus.market.mapper.GoodsMapper;
 import com.campus.market.mapper.OrderMapper;
+import com.campus.market.mapper.UserMapper;
 import com.campus.market.statemachine.OrderStateMachine;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -45,12 +46,14 @@ class OrderServiceTest {
     OrderMapper orderMapper;
     @Mock
     GoodsMapper goodsMapper;
+    @Mock
+    UserMapper userMapper;
 
     OrderServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new OrderServiceImpl(orderMapper, goodsMapper,
+        service = new OrderServiceImpl(orderMapper, goodsMapper, userMapper,
                 new OrderStateMachine(), new MarketProperties());
     }
 

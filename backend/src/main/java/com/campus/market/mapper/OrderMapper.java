@@ -38,4 +38,18 @@ public interface OrderMapper extends BaseMapper<Order> {
     @Update("UPDATE orders SET status = 'PAID', pay_voucher_no = #{voucher}, pay_time = #{now} "
             + "WHERE id = #{orderId} AND status = 'PENDING_PAY'")
     int markPaid(Long orderId, String voucher, Long now);
+
+    /**
+     * 买家取消（FR-ORDER-03）：PENDING_PAY → CANCELLED + 取消原因。
+     */
+    @Update("UPDATE orders SET status = 'CANCELLED', cancel_reason = #{reason} "
+            + "WHERE id = #{orderId} AND status = 'PENDING_PAY'")
+    int markCancelled(Long orderId, String reason);
+
+    /**
+     * 确认完成（FR-ORDER-05）：PAID → COMPLETED + 完成时间。
+     */
+    @Update("UPDATE orders SET status = 'COMPLETED', complete_time = #{now} "
+            + "WHERE id = #{orderId} AND status = 'PAID'")
+    int markCompleted(Long orderId, Long now);
 }

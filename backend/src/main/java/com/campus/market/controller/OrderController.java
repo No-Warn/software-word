@@ -14,8 +14,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 订单交易接口（契约 API-17/18，02§2.5.2）。
- * 取消/完成/我的订单（API-19~21）归 T-10 增量交付。
+ * 订单交易接口（契约 API-17~20，02§2.5.2）。
+ * 我的订单（API-21 GET /users/me/orders）按契约路径归属 UserController。
  */
 @RestController
 @RequestMapping("/api/v1/orders")
@@ -32,5 +32,15 @@ public class OrderController {
     @PostMapping("/{id}/pay")
     public Result<OrderVO> pay(@PathVariable Long id) {
         return Result.ok(orderService.pay(SecurityUtils.currentUserId(), id));
+    }
+
+    @PostMapping("/{id}/cancel")
+    public Result<OrderVO> cancel(@PathVariable Long id) {
+        return Result.ok(orderService.cancel(SecurityUtils.currentUserId(), id));
+    }
+
+    @PostMapping("/{id}/complete")
+    public Result<OrderVO> complete(@PathVariable Long id) {
+        return Result.ok(orderService.complete(SecurityUtils.currentUserId(), id));
     }
 }
