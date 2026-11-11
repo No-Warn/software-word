@@ -1,0 +1,42 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: market
+  profiles:
+    active: dev
+  servlet:
+    multipart:
+      max-file-size: 5MB        # BR-10 single image limit
+      max-request-size: 50MB
+  jackson:
+    default-property-inclusion: non_null
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+    db-config:
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+market:
+  jwt:
+    # NFR-MAINT-03: prod must inject via env var; placeholder default is dev-only (A-01)
+    secret: ${JWT_SECRET:dev-only-secret-change-in-production-0123456789abcdef}
+    expire-hours: 24
+  pay-timeout-minutes: 15       # BR-03
+  upload:
+    max-count: 9                # BR-10
+  data-dir: ${DATA_DIR:./data}
+  campus-email-suffix: ${CAMPUS_EMAIL_SUFFIX:@stu.example.edu.cn}   # BR-01 (Q1 pending, configurable)
+  rate-limit-per-minute: 60    # 02 section 2.5.1

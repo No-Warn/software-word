@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: jdbc:sqlite:${DATA_DIR:/opt/market/data}/market.db
+    driver-class-name: org.sqlite.JDBC
+  sql:
+    init:
+      mode: always              # schema/data idempotent, satisfies 03 section 3.10.4 prod bootstrap
+
+logging:
+  file:
+    name: logs/market.log
+  level:
+    root: INFO

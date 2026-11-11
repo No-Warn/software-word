@@ -1,0 +1,29 @@
+# Build artifacts
+backend/target/
+frontend/dist/
+frontend/node_modules/
+
+# Runtime data (SQLite db / uploaded images / logs) — per NFR-MAINT-03
+data/
+logs/
+*.db
+*.db-wal
+*.db-shm
+
+# Secrets — never commit (03§3.4)
+.env
+.env.*
+*.pem
+*.key
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Toolchain (user-level installs, not project assets)
+.toolchain/

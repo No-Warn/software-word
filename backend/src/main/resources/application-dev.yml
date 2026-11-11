@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: jdbc:sqlite:${DATA_DIR:./data}/market-dev.db
+    driver-class-name: org.sqlite.JDBC
+  sql:
+    init:
+      mode: always              # idempotent schema/data (03 section 3.10.4 dev)
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
+
+logging:
+  level:
+    com.campus.market: DEBUG
