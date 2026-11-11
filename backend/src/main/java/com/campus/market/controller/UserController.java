@@ -5,11 +5,13 @@ import com.campus.market.common.Result;
 import com.campus.market.dto.request.ChangePasswordRequest;
 import com.campus.market.dto.response.MyGoodsVO;
 import com.campus.market.dto.response.OrderVO;
+import com.campus.market.dto.response.ReportVO;
 import com.campus.market.enums.TradeRole;
 import com.campus.market.security.SecurityUtils;
 import com.campus.market.service.AuthService;
 import com.campus.market.service.GoodsQueryService;
 import com.campus.market.service.OrderService;
+import com.campus.market.service.ReportService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,7 +22,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 用户接口（契约 02§2.5.2）：改密 API-06、我的商品 API-16、我的订单 API-21；
+ * 用户接口（契约 02§2.5.2）：改密 API-06、我的商品 API-16、我的订单 API-21、我的举报 API-28；
  * /users/me 资料读写（API-04/05）与他人主页 API-07 归 T-04 增量补充。
  */
 @RestController
@@ -31,6 +33,7 @@ public class UserController {
     private final AuthService authService;
     private final GoodsQueryService goodsQueryService;
     private final OrderService orderService;
+    private final ReportService reportService;
 
     @PutMapping("/me/password")
     public Result<Void> changePassword(@Valid @RequestBody ChangePasswordRequest req) {
@@ -55,5 +58,12 @@ public class UserController {
             tradeRole = TradeRole.BUYER;        // 非法维度宽松降级（FR-GOODS-07 同口径）
         }
         return Result.ok(orderService.listMine(SecurityUtils.currentUserId(), tradeRole, page, size));
+    }
+
+    @GetMapping("/me/reports")
+    public Result<PageResult<ReportVO>> myReports(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        return Result.ok(reportService.listMine(SecurityUtils.currentUserId(), page, size));
     }
 }
