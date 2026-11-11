@@ -8,6 +8,7 @@ import com.campus.market.entity.Goods;
 import com.campus.market.enums.GoodsStatus;
 import com.campus.market.mapper.GoodsMapper;
 import com.campus.market.mapper.UserMapper;
+import com.campus.market.service.ReviewService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,12 +38,14 @@ class GoodsQueryServiceTest {
     GoodsMapper goodsMapper;
     @Mock
     UserMapper userMapper;
+    @Mock
+    ReviewService reviewService;
 
     GoodsQueryServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new GoodsQueryServiceImpl(goodsMapper, userMapper, new ObjectMapper());
+        service = new GoodsQueryServiceImpl(goodsMapper, userMapper, new ObjectMapper(), reviewService);
     }
 
     private Goods goods(GoodsStatus status) {

@@ -15,6 +15,7 @@ import com.campus.market.enums.SortType;
 import com.campus.market.mapper.GoodsMapper;
 import com.campus.market.mapper.UserMapper;
 import com.campus.market.service.GoodsQueryService;
+import com.campus.market.service.ReviewService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +38,7 @@ public class GoodsQueryServiceImpl implements GoodsQueryService {
     private final GoodsMapper goodsMapper;
     private final UserMapper userMapper;
     private final ObjectMapper objectMapper;
+    private final ReviewService reviewService;
 
     @Override
     public PageResult<GoodsVO> list(String keyword, Long categoryId, Double minPrice, Double maxPrice,
@@ -85,8 +87,9 @@ public class GoodsQueryServiceImpl implements GoodsQueryService {
         }
         User seller = userMapper.selectById(goods.getSellerId());
         String sellerNickname = seller == null ? null : seller.getNickname();
-        // 卖家信用分：T-13 评价模块交付后填充（FR-REVIEW-02）
-        return GoodsDetailVO.of(goods, parseImages(goods), sellerNickname, null, null);
+        // 卖家信用分（FR-REVIEW-02，T-13 联动）：无评价返回 null（前端"暂无评价"）
+        return GoodsDetailVO.of(goods, parseImages(goods), sellerNickname,
+                reviewService.creditOf(goods.getSellerId()), null);
     }
 
     @Override

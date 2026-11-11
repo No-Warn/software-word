@@ -8,6 +8,7 @@ import com.campus.market.entity.Goods;
 import com.campus.market.enums.GoodsStatus;
 import com.campus.market.mapper.CategoryMapper;
 import com.campus.market.mapper.GoodsMapper;
+import com.campus.market.service.SensitiveWordService;
 import com.campus.market.statemachine.GoodsStateMachine;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,13 +45,15 @@ class GoodsServiceTest {
     GoodsMapper goodsMapper;
     @Mock
     CategoryMapper categoryMapper;
+    @Mock
+    SensitiveWordService sensitiveWordService;
 
     GoodsServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new GoodsServiceImpl(goodsMapper, categoryMapper,
-                new GoodsStateMachine(), new ObjectMapper());
+                new GoodsStateMachine(), new ObjectMapper(), sensitiveWordService);
         Category category = new Category();
         category.setId(1L);
         category.setName("教材");

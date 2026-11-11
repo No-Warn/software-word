@@ -12,6 +12,7 @@ import com.campus.market.enums.GoodsStatus;
 import com.campus.market.mapper.CategoryMapper;
 import com.campus.market.mapper.GoodsMapper;
 import com.campus.market.service.GoodsService;
+import com.campus.market.service.SensitiveWordService;
 import com.campus.market.statemachine.GoodsStateMachine;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -35,6 +36,7 @@ public class GoodsServiceImpl implements GoodsService {
     private final CategoryMapper categoryMapper;
     private final GoodsStateMachine goodsStateMachine;
     private final ObjectMapper objectMapper;
+    private final SensitiveWordService sensitiveWordService;
 
     @Override
     public GoodsVO publish(Long sellerId, GoodsUpsertRequest req) {
@@ -129,6 +131,10 @@ public class GoodsServiceImpl implements GoodsService {
         }
         if (req.images() == null || req.images().isEmpty() || req.images().size() > 9) {
             throw new BizException(ErrorCode.IMAGE_INVALID);      // BR-10
+        }
+        // BR-11：商品标题/描述命中敏感词拒绝（B0401，与留言/评价共用 SensitiveWordService）
+        if (sensitiveWordService.hits(req.title()) || sensitiveWordService.hits(req.description())) {
+            throw new BizException(ErrorCode.SENSITIVE_WORD);
         }
     }
 
