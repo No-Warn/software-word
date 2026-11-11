@@ -1,10 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { messageApi } from '../api'
-
-// messageApi 未单独建文件：复用 goodsApi 中的 myMessages
-import { goodsApi as api } from '../api'
-const msgApi = api
+import { goodsApi } from '../api'
 
 const page = ref(1)
 const size = ref(20)
@@ -15,7 +11,7 @@ const loading = ref(false)
 async function load() {
   loading.value = true
   try {
-    const data = await msgApi.myMessages({ page: page.value, size: size.value })
+    const data = await goodsApi.myMessages({ page: page.value, size: size.value })
     list.value = data.list
     total.value = data.total
   } finally {

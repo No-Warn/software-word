@@ -18,8 +18,8 @@ public class MarketProperties {
     private int payTimeoutMinutes = 15;
     private Upload upload = new Upload();
     private String dataDir = "./data";
-    /** 校园邮箱后缀白名单（BR-01，Q1 待确认后仅改配置） */
-    private String campusEmailSuffix = "@stu.example.edu.cn";
+    /** 校园邮箱域名后缀（BR-01，默认适配国内高校 edu.cn 域名） */
+    private String campusEmailSuffix = ".edu.cn";
     /** 登录/注册/留言限流：次/分钟/IP（02§2.5.1） */
     private int rateLimitPerMinute = 60;
 

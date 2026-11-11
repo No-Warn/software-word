@@ -45,7 +45,6 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         MarketProperties props = new MarketProperties();
-        props.setCampusEmailSuffix("@stu.example.edu.cn");
         props.getJwt().setSecret("test-secret-test-secret-test-secret-123456");
         AuthServiceImpl realService = new AuthServiceImpl(userMapper, encoder,
                 new JwtUtil(props), props);
@@ -53,7 +52,7 @@ class AuthServiceTest {
         service = realService;
         user = new User();
         user.setId(1L);
-        user.setEmail("stu1@stu.example.edu.cn");
+        user.setEmail("stu1@pku.edu.cn");
         user.setPasswordHash("$2a$10$stored");
         user.setNickname("张三");
         user.setRole(com.campus.market.enums.Role.USER);
@@ -73,9 +72,34 @@ class AuthServiceTest {
     }
 
     @Test
+    void register_acceptsDifferentDomesticUniversityDomains() {
+        when(userMapper.selectCount(any())).thenReturn(0L);
+        when(encoder.encode("abcd1234")).thenReturn("$2a$10$encoded");
+
+        var pkuResult = service.register(new RegisterRequest(
+                "apricity@pku.edu.cn", "张三", "abcd1234"));
+        var tsinghuaResult = service.register(new RegisterRequest(
+                "student@mail.tsinghua.edu.cn", "李四", "abcd1234"));
+
+        assertThat(pkuResult.userInfo().email()).isEqualTo("apricity@pku.edu.cn");
+        assertThat(tsinghuaResult.userInfo().email()).isEqualTo("student@mail.tsinghua.edu.cn");
+        verify(userMapper, times(2)).insert(any(User.class));
+    }
+
+    @Test
+    void register_rejectsLookalikeDomainWithoutEduSubdomain() {
+        var req = new RegisterRequest("someone@notedu.cn", "张三", "abcd1234");
+
+        assertThatThrownBy(() -> service.register(req))
+                .isInstanceOf(BizException.class)
+                .extracting(e -> ((BizException) e).getErrorCode())
+                .isEqualTo(ErrorCode.EMAIL_SUFFIX_INVALID);
+    }
+
+    @Test
     void register_rejectsDuplicateEmail_B0102() {
         when(userMapper.selectCount(any())).thenReturn(1L);
-        var req = new RegisterRequest("stu1@stu.example.edu.cn", "张三", "abcd1234");
+        var req = new RegisterRequest("stu1@pku.edu.cn", "张三", "abcd1234");
         assertThatThrownBy(() -> service.register(req))
                 .isInstanceOf(BizException.class)
                 .extracting(e -> ((BizException) e).getErrorCode())
@@ -86,12 +110,12 @@ class AuthServiceTest {
     void register_ok_storesBcryptHashAndReturnsToken() {
         when(userMapper.selectCount(any())).thenReturn(0L);
         when(encoder.encode("abcd1234")).thenReturn("$2a$10$encoded");
-        var req = new RegisterRequest("stu2@stu.example.edu.cn", "李四", "abcd1234");
+        var req = new RegisterRequest("stu2@pku.edu.cn", "李四", "abcd1234");
 
         var vo = service.register(req);
 
         assertThat(vo.token()).isNotBlank();
-        assertThat(vo.userInfo().email()).isEqualTo("stu2@stu.example.edu.cn");
+        assertThat(vo.userInfo().email()).isEqualTo("stu2@pku.edu.cn");
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userMapper).insert(captor.capture());
         // NFR-SEC-01：库内仅存 BCrypt 哈希，无明文
@@ -105,7 +129,7 @@ class AuthServiceTest {
     void login_locksAfter5ConsecutiveFailures() {
         when(userMapper.selectOne(any())).thenReturn(user);
         when(encoder.matches(anyString(), anyString())).thenReturn(false);
-        var req = new LoginRequest("stu1@stu.example.edu.cn", "wrong");
+        var req = new LoginRequest("stu1@pku.edu.cn", "wrong");
 
         for (int i = 1; i <= 5; i++) {
             assertThatThrownBy(() -> service.login(req))
@@ -127,7 +151,7 @@ class AuthServiceTest {
     void login_bannedRejected_A0240() {
         user.setStatus(UserStatus.BANNED);
         when(userMapper.selectOne(any())).thenReturn(user);
-        var req = new LoginRequest("stu1@stu.example.edu.cn", "abcd1234");
+        var req = new LoginRequest("stu1@pku.edu.cn", "abcd1234");
 
         assertThatThrownBy(() -> service.login(req))
                 .isInstanceOf(BizException.class)
@@ -140,7 +164,7 @@ class AuthServiceTest {
         when(userMapper.selectOne(any())).thenReturn(user);
         when(encoder.matches(anyString(), anyString())).thenReturn(false);
 
-        assertThatThrownBy(() -> service.login(new LoginRequest("stu1@stu.example.edu.cn", "bad")))
+        assertThatThrownBy(() -> service.login(new LoginRequest("stu1@pku.edu.cn", "bad")))
                 .hasMessageContaining("邮箱或密码错误");
     }
 

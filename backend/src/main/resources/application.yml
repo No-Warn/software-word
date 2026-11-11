@@ -38,5 +38,5 @@ market:
   upload:
     max-count: 9                # BR-10
   data-dir: ${DATA_DIR:./data}
-  campus-email-suffix: ${CAMPUS_EMAIL_SUFFIX:@stu.example.edu.cn}   # BR-01 (Q1 pending, configurable)
+  campus-email-suffix: ${CAMPUS_EMAIL_SUFFIX:.edu.cn}   # BR-01 (configurable domain suffix)
   rate-limit-per-minute: 60    # 02 section 2.5.1

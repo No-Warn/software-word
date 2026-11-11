@@ -19,6 +19,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.Locale;
 
 /**
  * 认证服务实现（FR-AUTH-01/02/04）。
@@ -41,9 +42,12 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginVO register(RegisterRequest req) {
-        // BR-01：校园邮箱后缀白名单（可配置，真实后缀待确认 Q1）
-        String suffix = props.getCampusEmailSuffix().toLowerCase();
-        if (!req.email().toLowerCase().endsWith(suffix)) {
+        // BR-01：匹配邮箱域名后缀，默认适配所有 *.edu.cn 高校域名。
+        String email = req.email().toLowerCase(Locale.ROOT);
+        String suffix = props.getCampusEmailSuffix().toLowerCase(Locale.ROOT);
+        int atIndex = email.lastIndexOf('@');
+        String domain = atIndex >= 0 ? email.substring(atIndex + 1) : "";
+        if (!suffix.startsWith(".") || !domain.endsWith(suffix)) {
             throw new BizException(ErrorCode.EMAIL_SUFFIX_INVALID);
         }
         if (existsEmail(req.email())) {
