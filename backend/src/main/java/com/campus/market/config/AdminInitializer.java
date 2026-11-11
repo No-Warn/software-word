@@ -5,8 +5,8 @@ import com.campus.market.entity.User;
 import com.campus.market.enums.Role;
 import com.campus.market.enums.UserStatus;
 import com.campus.market.mapper.UserMapper;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,17 +14,24 @@ import org.springframework.stereotype.Component;
 
 /**
  * 管理员账号初始化（03§3.7）：首次启动若无 ADMIN 用户，
- * 以环境变量 ADMIN_PASSWORD 创建（BCrypt 落库，明文不落库不入代码库，NFR-MAINT-03）。
+ * 以 ADMIN_PASSWORD 创建（BCrypt 落库，明文不落库不入代码库，NFR-MAINT-03）。
+ * 密码经 Spring 属性 ADMIN_PASSWORD 注入（生产=环境变量自动映射；测试可 @DynamicPropertySource 覆盖）。
  * 登录邮箱固定 admin@campus.local（管理后台不走 BR-01 注册校验，直接落库）。
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class AdminInitializer implements ApplicationRunner {
 
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
-    private final MarketProperties props;
+    private final String adminPassword;
+
+    public AdminInitializer(UserMapper userMapper, PasswordEncoder passwordEncoder,
+                            @Value("${ADMIN_PASSWORD:}") String adminPassword) {
+        this.userMapper = userMapper;
+        this.passwordEncoder = passwordEncoder;
+        this.adminPassword = adminPassword;
+    }
 
     @Override
     public void run(ApplicationArguments args) {
@@ -34,14 +41,13 @@ public class AdminInitializer implements ApplicationRunner {
             log.info("admin already exists, skip initialization");
             return;
         }
-        String password = System.getenv("ADMIN_PASSWORD");
-        if (password == null || password.isBlank()) {
+        if (adminPassword == null || adminPassword.isBlank()) {
             log.warn("ADMIN_PASSWORD not set; admin account NOT created");
             return;
         }
         User admin = new User();
         admin.setEmail("admin@campus.local");
-        admin.setPasswordHash(passwordEncoder.encode(password));
+        admin.setPasswordHash(passwordEncoder.encode(adminPassword));
         admin.setNickname("admin");
         admin.setBio("平台管理员");
         admin.setRole(Role.ADMIN);
