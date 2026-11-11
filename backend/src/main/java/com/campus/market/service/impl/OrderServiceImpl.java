@@ -24,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -37,13 +38,15 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 /**
- * 订单服务（FR-ORDER-01~06；API-17~21）。
+ * 订单服务（FR-ORDER-01~06；API-17~21 + FR-ORDER-04）。
  * 下单互斥（BR-06，02§2.6.1）：事务内 tryLockGoods 条件更新（行数=1 才建单）；
  * SQLite 写串行化 + WAL 兜底并发（DataConfig）；INSERT 失败事务整体回滚，商品自动回到 ON_SALE。
  * 价格快照（BR-12）：amount 取下单时商品价，后续改价不影响。
  * 模拟支付（BR-04，02§2.6.2）：幂等（重复支付返回当前态）→ 状态机守卫（B0304）→
  * 超时判定（B0305）→ 商品治理态拒绝 → markPaid 条件更新（竞态后到者按幂等/错误处理）。
  * 取消/完成（02§2.6.6）：订单变更与商品回滚/售出在**同一事务**，任一失败整体回滚。
+ * 超时关闭（BR-03，02§2.6.3）：逐单编程式事务（TransactionTemplate），
+ * markClosed 条件更新先到先得，行数=0 跳过；unlock 失败抛异常回滚本单（不影响其他单）。
  */
 @Slf4j
 @Service
@@ -57,6 +60,7 @@ public class OrderServiceImpl implements OrderService {
     private final UserMapper userMapper;
     private final OrderStateMachine orderStateMachine;
     private final MarketProperties props;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
     @Transactional
@@ -203,6 +207,41 @@ public class OrderServiceImpl implements OrderService {
                         nicknames.get(asSeller ? o.getBuyerId() : o.getSellerId())))
                 .toList();
         return PageResult.of(vos, result.getTotal(), p, s);
+    }
+
+    @Override
+    public int closeTimeoutOrders() {
+        long now = System.currentTimeMillis();
+        List<Order> timeoutOrders = orderMapper.selectList(new LambdaQueryWrapper<Order>()
+                .eq(Order::getStatus, OrderStatus.PENDING_PAY)
+                .lt(Order::getTimeoutAt, now));
+        int closed = 0;
+        for (Order order : timeoutOrders) {
+            // 02§2.6.3：逐单编程式事务（避免 Spring 自调用事务失效），一单失败不影响其他单
+            try {
+                Boolean ok = transactionTemplate.execute(tx -> {
+                    // 条件更新先到先得：行数=0 表示已被支付/取消（TC-06 竞态防护点）
+                    int rows = orderMapper.markClosed(order.getId());
+                    if (rows != 1) {
+                        return false;
+                    }
+                    int unlocked = orderMapper.unlockGoods(order.getGoodsId(), System.currentTimeMillis());
+                    if (unlocked != 1) {
+                        throw new BizException(ErrorCode.GOODS_STATUS_INVALID);   // 回滚本单事务
+                    }
+                    return true;
+                });
+                if (Boolean.TRUE.equals(ok)) {
+                    closed++;
+                } else {
+                    log.info("timeout order skipped (already settled): id={}", order.getId());
+                }
+            } catch (Exception e) {
+                // 单笔失败（如商品一致性异常）仅回滚本单事务，记录后继续处理其他订单，下轮重试
+                log.error("close timeout order failed: id={}", order.getId(), e);
+            }
+        }
+        return closed;
     }
 
     private Order requireBuyerOrder(Long buyerId, Long orderId) {

@@ -6,7 +6,7 @@ import com.campus.market.dto.response.OrderVO;
 import com.campus.market.enums.TradeRole;
 
 /**
- * 订单服务（FR-ORDER-01~06；契约 API-17~21）。超时关闭归 T-11。
+ * 订单服务（FR-ORDER-01~06；契约 API-17~21 + FR-ORDER-04 超时关闭）。
  */
 public interface OrderService {
 
@@ -24,4 +24,10 @@ public interface OrderService {
 
     /** 我的订单（FR-ORDER-06）：role=BUYER（我买到的）/SELLER（我卖出的） */
     PageResult<OrderVO> listMine(Long userId, TradeRole role, Integer page, Integer size);
+
+    /**
+     * 关闭全部超时待支付订单（FR-ORDER-04 / BR-03，02§2.6.3）：
+     * 逐单事务，条件更新先到先得；返回本次实际关闭数。由 OrderTimeoutScheduler 每分钟调用。
+     */
+    int closeTimeoutOrders();
 }

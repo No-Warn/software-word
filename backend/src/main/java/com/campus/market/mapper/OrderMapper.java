@@ -52,4 +52,12 @@ public interface OrderMapper extends BaseMapper<Order> {
     @Update("UPDATE orders SET status = 'COMPLETED', complete_time = #{now} "
             + "WHERE id = #{orderId} AND status = 'PAID'")
     int markCompleted(Long orderId, Long now);
+
+    /**
+     * 超时关闭（FR-ORDER-04 / BR-03）：条件更新先到先得，
+     * 行数=0 表示已被支付/取消（02§2.6.3 与人工操作竞态的防护点）。
+     */
+    @Update("UPDATE orders SET status = 'CLOSED' "
+            + "WHERE id = #{orderId} AND status = 'PENDING_PAY'")
+    int markClosed(Long orderId);
 }

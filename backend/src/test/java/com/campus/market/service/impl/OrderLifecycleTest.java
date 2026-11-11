@@ -23,6 +23,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -47,13 +50,17 @@ class OrderLifecycleTest {
     GoodsMapper goodsMapper;
     @Mock
     UserMapper userMapper;
+    @Mock
+    PlatformTransactionManager transactionManager;
 
     OrderServiceImpl service;
 
     @BeforeEach
     void setUp() {
+        when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+        TransactionTemplate tt = new TransactionTemplate(transactionManager);
         service = new OrderServiceImpl(orderMapper, goodsMapper, userMapper,
-                new OrderStateMachine(), new MarketProperties());
+                new OrderStateMachine(), new MarketProperties(), tt);
     }
 
     private Order order(OrderStatus status) {
