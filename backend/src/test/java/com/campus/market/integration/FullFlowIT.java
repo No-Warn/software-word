@@ -122,12 +122,13 @@ class FullFlowIT {
         assertThat(completedStatus).isEqualTo("COMPLETED");
         assertThat(goodsStatus(goodsId, sellerToken)).isEqualTo("SOLD");
 
-        // 8. 双方互评（TC-12：BR-07）+ 信用分（TC-30：(5+4)/2=4.5）
+        // 8. 双方互评（TC-12：BR-07）+ 信用分（TC-30 口径：卖家作为 reviewee 收到的评分均值）
+        // 买家评卖家 5 分（reviewee=seller），卖家评买家 4 分（reviewee=buyer）→ 卖家信用分 = 5.0
         postJson("/api/v1/reviews", "{\"orderId\":" + orderId + ",\"rating\":5,\"content\":\"发货快\"}", buyerToken);
         postJson("/api/v1/reviews", "{\"orderId\":" + orderId + ",\"rating\":4,\"content\":\"付款爽快\"}", sellerToken);
         String sellerProfile = getJson("/api/v1/users/" + sellerId + "/profile", null);
         Double credit = JsonPath.read(sellerProfile, "$.data.credit");
-        assertThat(credit).isEqualTo(4.5);
+        assertThat(credit).isEqualTo(5.0);
 
         // 9. 买家留言：敏感词拒绝（TC-11/BR-11）→ 正常留言成功
         String sensitive = postJson("/api/v1/goods/" + goodsId + "/messages",
